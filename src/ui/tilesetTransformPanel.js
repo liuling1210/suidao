@@ -1,18 +1,18 @@
 import * as Cesium from "cesium";
-import { composeTilesetMatrix, DEFAULT_FINE_ADJUST } from "../utils/modelMatrixAdjust.js";
+import { composeTilesetMatrix, DEFAULT_COARSE_ADJUST } from "../utils/modelMatrixAdjust.js";
 
-const FINE_TRANSLATION_RANGE = { min: -30, max: 30, step: 0.01, decimals: 2 };
-const FINE_ROTATION_RANGE = { min: -15, max: 15, step: 0.01, decimals: 2 };
-const FINE_SCALE_RANGE = { min: 0.97, max: 1.03, step: 0.0001, decimals: 4 };
+const COARSE_TRANSLATION_RANGE = { min: -1000, max: 1000, step: 1, decimals: 1 };
+const COARSE_ROTATION_RANGE = { min: -90, max: 90, step: 0.1, decimals: 1 };
+const COARSE_SCALE_RANGE = { min: 0.5, max: 2, step: 0.001, decimals: 3 };
 
 const FIELDS = [
-  { key: "tx", label: "东向 E (m)", group: "细调平移", ...FINE_TRANSLATION_RANGE },
-  { key: "ty", label: "北向 N (m)", group: "细调平移", ...FINE_TRANSLATION_RANGE },
-  { key: "tz", label: "天向 U (m)", group: "细调平移", ...FINE_TRANSLATION_RANGE },
-  { key: "rx", label: "绕 X 轴 (东) °", group: "细调旋转", ...FINE_ROTATION_RANGE },
-  { key: "ry", label: "绕 Y 轴 (北) °", group: "细调旋转", ...FINE_ROTATION_RANGE },
-  { key: "rz", label: "绕 Z 轴 (天) °", group: "细调旋转", ...FINE_ROTATION_RANGE },
-  { key: "scale", label: "缩放倍率", group: "细调缩放", ...FINE_SCALE_RANGE },
+  { key: "tx", label: "东向 E (m)", group: "粗调平移", ...COARSE_TRANSLATION_RANGE },
+  { key: "ty", label: "北向 N (m)", group: "粗调平移", ...COARSE_TRANSLATION_RANGE },
+  { key: "tz", label: "天向 U (m)", group: "粗调平移", ...COARSE_TRANSLATION_RANGE },
+  { key: "rx", label: "绕 X 轴 (东) °", group: "粗调旋转", ...COARSE_ROTATION_RANGE },
+  { key: "ry", label: "绕 Y 轴 (北) °", group: "粗调旋转", ...COARSE_ROTATION_RANGE },
+  { key: "rz", label: "绕 Z 轴 (天) °", group: "粗调旋转", ...COARSE_ROTATION_RANGE },
+  { key: "scale", label: "缩放倍率", group: "粗调缩放", ...COARSE_SCALE_RANGE },
 ];
 
 function formatValue(value, decimals) {
@@ -46,17 +46,25 @@ function createFieldRow(field, value) {
   `;
 }
 
-export function initTilesetTransformPanel({ tileset: initialTileset, baseMatrix, anchor, container = document.body }) {
+export function initTilesetTransformPanel({
+  tileset: initialTileset,
+  baseMatrix,
+  anchor,
+  initialPlacementMatrix = null,
+  applyRegistration = true,
+  container = document.body,
+}) {
   let tileset = initialTileset;
-  const adjust = { ...DEFAULT_FINE_ADJUST };
+  let useRegistration = applyRegistration;
+  const adjust = { ...DEFAULT_COARSE_ADJUST };
 
   const panel = document.createElement("div");
   panel.className = "control-panel tileset-panel";
 
-  const groups = ["细调平移", "细调旋转", "细调缩放"];
+  const groups = ["粗调平移", "粗调旋转", "粗调缩放"];
 
   panel.innerHTML = `
-    <div class="control-panel__title">模型变换</div>
+    <div class="control-panel__title">模型粗调</div>
     ${groups
       .map((group) => {
         const fields = FIELDS.filter((field) => field.group === group);
@@ -68,7 +76,7 @@ export function initTilesetTransformPanel({ tileset: initialTileset, baseMatrix,
         `;
       })
       .join("")}
-    <button type="button" class="control-panel__reset">重置细调</button>
+    <button type="button" class="control-panel__reset">重置粗调</button>
   `;
 
   container.appendChild(panel);
@@ -77,7 +85,10 @@ export function initTilesetTransformPanel({ tileset: initialTileset, baseMatrix,
     if (!tileset) {
       return;
     }
-    tileset.modelMatrix = composeTilesetMatrix(baseMatrix, anchor, adjust);
+    tileset.modelMatrix = composeTilesetMatrix(baseMatrix, anchor, adjust, {
+      applyRegistration: useRegistration,
+      initialPlacementMatrix,
+    });
   }
 
   function syncValue(key, value) {
@@ -106,8 +117,8 @@ export function initTilesetTransformPanel({ tileset: initialTileset, baseMatrix,
   });
 
   panel.querySelector(".control-panel__reset").addEventListener("click", () => {
-    Object.keys(DEFAULT_FINE_ADJUST).forEach((key) => {
-      syncValue(key, DEFAULT_FINE_ADJUST[key]);
+    Object.keys(DEFAULT_COARSE_ADJUST).forEach((key) => {
+      syncValue(key, DEFAULT_COARSE_ADJUST[key]);
     });
   });
 
@@ -127,6 +138,11 @@ export function initTilesetTransformPanel({ tileset: initialTileset, baseMatrix,
       tileset = nextTileset;
       applyMatrix();
     },
+    setApplyRegistration: (enabled) => {
+      useRegistration = enabled;
+      applyMatrix();
+    },
+    getApplyRegistration: () => useRegistration,
     reapplyMatrix: applyMatrix,
   };
 }

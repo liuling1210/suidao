@@ -135,9 +135,24 @@ body,
   color: #94a3b8;
 }
 
+.tileset-upload-panel__toggle {
+  margin-bottom: 6px;
+}
+
+.tileset-upload-panel__toggle-hint {
+  margin: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
 .tileset-upload-panel__button {
   display: block;
   text-align: center;
+}
+
+.tileset-upload-panel__fly {
+  margin-top: 8px;
 }
 
 .tileset-upload-panel__button.is-loading {

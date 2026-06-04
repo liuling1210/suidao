@@ -4,10 +4,14 @@ import "./style.css";
 import { TUNNEL_LINES } from "./config/tunnelLocations.js";
 import {
   addTunnelMarkers,
+  clearTilesetRootTransform,
+  computeInitialPlacementMatrix,
   endpointToCartesian,
+  initialPlacementAnchor,
   pickBestModelMatrix,
 } from "./utils/tunnelTransform.js";
 import { clearLocalTilesetSession, loadLocalTilesetFromFiles } from "./utils/localTilesetLoader.js";
+import { composeInitialTilesetMatrix } from "./utils/modelMatrixAdjust.js";
 import { initGlobeTranslucencyPanel } from "./ui/globeTranslucencyPanel.js";
 import { initTilesetTransformPanel } from "./ui/tilesetTransformPanel.js";
 import { initTilesetUploadPanel } from "./ui/tilesetUploadPanel.js";
@@ -61,6 +65,11 @@ const { matrix: baseMatrix, errors } = pickBestModelMatrix(
   worldRightEntrance,
   worldRightExit
 );
+const placementAnchor = initialPlacementAnchor();
+const initialPlacementMatrix = composeInitialTilesetMatrix(
+  placementAnchor,
+  computeInitialPlacementMatrix(worldLeftEntrance, worldLeftExit)
+);
 
 console.info("隧道配准误差（米）:", {
   左线进口: errors.leftEntrance.toFixed(2),
@@ -77,6 +86,7 @@ console.info("隧道设计路面高程（米）:", {
 
 let currentTileset = null;
 let transformPanel = null;
+let currentModelLabel = "默认隧道模型";
 
 async function flyToTileset(tileset) {
   await tileset.readyPromise;
@@ -90,7 +100,7 @@ async function flyToTileset(tileset) {
   });
 }
 
-async function replaceTileset(tileset, { flyTo = true, useLocalSession = false } = {}) {
+async function replaceTileset(tileset, { flyTo = true, useLocalSession = false, applyRegistration = true } = {}) {
   if (currentTileset) {
     viewer.scene.primitives.remove(currentTileset);
     if (!useLocalSession) {
@@ -98,8 +108,11 @@ async function replaceTileset(tileset, { flyTo = true, useLocalSession = false }
     }
   }
 
+  await clearTilesetRootTransform(tileset);
+
   viewer.scene.primitives.add(tileset);
   currentTileset = tileset;
+  transformPanel.setApplyRegistration(applyRegistration);
   transformPanel.setTileset(tileset);
 
   if (flyTo) {
@@ -107,34 +120,66 @@ async function replaceTileset(tileset, { flyTo = true, useLocalSession = false }
   }
 }
 
-async function loadDefaultTileset() {
-  clearLocalTilesetSession();
-
-  const tileset = await Cesium.Cesium3DTileset.fromUrl(
-    `${import.meta.env.BASE_URL}model/suidao/tileset.json`
-  );
-  await replaceTileset(tileset, { useLocalSession: false });
+function formatModelStatus(applyRegistration) {
+  const registrationLabel = applyRegistration ? "已应用配准" : "未应用配准";
+  return `当前模型：${currentModelLabel}（${registrationLabel}）`;
 }
 
-async function loadUploadedTileset(files) {
+async function loadDefaultTileset() {
+  clearLocalTilesetSession();
+  currentModelLabel = "默认隧道模型";
+
+  const tileset = await Cesium.Cesium3DTileset.fromUrl(
+    `${import.meta.env.BASE_URL}model/out/tileset.json`
+  );
+  await replaceTileset(tileset, {
+    useLocalSession: false,
+    applyRegistration: false,
+  });
+  uploadPanel.setApplyRegistration(false);
+  uploadPanel.setStatus(formatModelStatus(false));
+}
+
+async function loadUploadedTileset(files, { applyRegistration = true } = {}) {
+  currentModelLabel = files[0].webkitRelativePath.split("/")[0] || "本地模型";
   const { tileset } = await loadLocalTilesetFromFiles(files);
-  await replaceTileset(tileset, { useLocalSession: true });
+  await replaceTileset(tileset, { useLocalSession: true, applyRegistration });
 }
 
 transformPanel = initTilesetTransformPanel({
   tileset: null,
   baseMatrix,
-  anchor: worldLeftEntrance,
+  anchor: placementAnchor,
+  initialPlacementMatrix,
+  applyRegistration: false,
 });
 
-initTilesetUploadPanel({
-  onUpload: loadUploadedTileset,
+const uploadPanel = initTilesetUploadPanel({
+  onUpload: async (files, options) => {
+    await loadUploadedTileset(files, options);
+    uploadPanel.setStatus(formatModelStatus(options.applyRegistration));
+  },
+  onApplyRegistrationChange: (applyRegistration) => {
+    if (!currentTileset) {
+      return;
+    }
+    transformPanel.setApplyRegistration(applyRegistration);
+    uploadPanel.setStatus(formatModelStatus(applyRegistration));
+  },
+  onFlyToTileset: async () => {
+    if (!currentTileset) {
+      uploadPanel.setStatus("当前无已加载的 3D Tiles 模型");
+      return;
+    }
+    try {
+      await flyToTileset(currentTileset);
+    } catch (error) {
+      console.error("飞到当前模型失败:", error);
+      uploadPanel.setStatus(`飞到模型失败：${error.message || error}`);
+    }
+  },
 });
 
-loadDefaultTileset().catch(async (error) => {
+loadDefaultTileset().catch((error) => {
   console.error("加载默认隧道模型失败:", error);
-  await viewer.camera.flyTo({
-    destination: worldLeftEntrance,
-    duration: 1.5,
-  });
 });

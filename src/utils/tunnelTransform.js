@@ -1,5 +1,5 @@
 import * as Cesium from "cesium";
-import { MODEL_TUNNEL_LINES } from "../config/tunnelLocations.js";
+import { INITIAL_TILESET_PLACEMENT, MODEL_TUNNEL_LINES } from "../config/tunnelLocations.js";
 
 /**
  * 基于当地 ENU（东-北-天）坐标系计算 modelMatrix
@@ -91,6 +91,43 @@ export function localPointToCartesian(point) {
 
 export function transformPoint(matrix, point) {
   return Cesium.Matrix4.multiplyByPoint(matrix, point, new Cesium.Cartesian3());
+}
+
+export function computeInitialPlacementMatrix(worldLeftEntrance, worldLeftExit) {
+  const leftModel = MODEL_TUNNEL_LINES.left;
+  const worldAnchor = Cesium.Cartesian3.fromDegrees(
+    INITIAL_TILESET_PLACEMENT.lon,
+    INITIAL_TILESET_PLACEMENT.lat,
+    INITIAL_TILESET_PLACEMENT.height
+  );
+  const tunnelVector = Cesium.Cartesian3.subtract(worldLeftExit, worldLeftEntrance, new Cesium.Cartesian3());
+  const worldExitAtAnchor = Cesium.Cartesian3.add(worldAnchor, tunnelVector, new Cesium.Cartesian3());
+
+  return computeEnuAlignedModelMatrix(
+    localPointToCartesian(leftModel.entrance),
+    localPointToCartesian(leftModel.exit),
+    worldAnchor,
+    worldExitAtAnchor
+  );
+}
+
+export function initialPlacementAnchor() {
+  return Cesium.Cartesian3.fromDegrees(
+    INITIAL_TILESET_PLACEMENT.lon,
+    INITIAL_TILESET_PLACEMENT.lat,
+    INITIAL_TILESET_PLACEMENT.height
+  );
+}
+
+export async function clearTilesetRootTransform(tileset) {
+  await tileset.readyPromise;
+  const root = tileset.root;
+  if (
+    root?.transform &&
+    !Cesium.Matrix4.equalsEpsilon(root.transform, Cesium.Matrix4.IDENTITY, Cesium.Math.EPSILON10)
+  ) {
+    root.transform = Cesium.Matrix4.IDENTITY.clone();
+  }
 }
 
 export function pickBestModelMatrix(worldLeftEntrance, worldLeftExit, worldRightEntrance, worldRightExit) {

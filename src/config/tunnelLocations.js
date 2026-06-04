@@ -81,3 +81,10 @@ export const MODEL_CENTERLINE = {
   center: { x: -730.602294921875, y: -1726.5120239257812, z: 940.5238647460938 },
   halfLength: 3385.346435546875,
 };
+
+/** 默认加载时的初始地理定位（WGS84，高程单位：米） */
+export const INITIAL_TILESET_PLACEMENT = {
+  lon: 107.333492,
+  lat: 29.298659,
+  height: 620.55,
+};
