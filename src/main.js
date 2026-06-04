@@ -73,7 +73,9 @@ async function loadTileset() {
   });
 
   try {
-    const tileset = await Cesium.Cesium3DTileset.fromUrl("/model/suidao/tileset.json");
+    const tileset = await Cesium.Cesium3DTileset.fromUrl(
+      `${import.meta.env.BASE_URL}model/suidao/tileset.json`
+    );
     viewer.scene.primitives.add(tileset);
 
     initTilesetTransformPanel({
