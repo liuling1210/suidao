@@ -10,15 +10,18 @@ export const BASE_TILESET_ADJUST = {
   rz: 9.4,
 };
 
-/** 已写入初始 modelMatrix 的粗调（面板归零后仍保持此位置） */
+/**
+ * 已写入初始 modelMatrix 的粗调（面板归零后仍保持此位置）
+ * 由面板 E44 / N0 / U0 / Z0° / S0.992 叠加上一版固化粗调后合并得到
+ */
 export const INITIAL_TILESET_COARSE_ADJUST = {
-  tx: -34,
-  ty: -533,
-  tz: 286,
+  tx: 10.27,
+  ty: -528.74,
+  tz: 283.71,
   rx: 0,
   ry: 0,
   rz: 9.4,
-  scale: 1,
+  scale: 0.992,
 };
 
 /** 面板粗调默认值（归零 + 无缩放） */
