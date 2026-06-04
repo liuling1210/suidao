@@ -121,3 +121,34 @@ body,
   max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
+
+.tileset-upload-panel {
+  bottom: 16px;
+  left: 16px;
+  width: 320px;
+}
+
+.tileset-upload-panel__hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.tileset-upload-panel__button {
+  display: block;
+  text-align: center;
+}
+
+.tileset-upload-panel__button.is-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.tileset-upload-panel__status {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #cbd5e1;
+  word-break: break-all;
+}

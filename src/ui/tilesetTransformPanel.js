@@ -46,7 +46,8 @@ function createFieldRow(field, value) {
   `;
 }
 
-export function initTilesetTransformPanel({ tileset, baseMatrix, anchor, container = document.body }) {
+export function initTilesetTransformPanel({ tileset: initialTileset, baseMatrix, anchor, container = document.body }) {
+  let tileset = initialTileset;
   const adjust = { ...DEFAULT_FINE_ADJUST };
 
   const panel = document.createElement("div");
@@ -73,6 +74,9 @@ export function initTilesetTransformPanel({ tileset, baseMatrix, anchor, contain
   container.appendChild(panel);
 
   function applyMatrix() {
+    if (!tileset) {
+      return;
+    }
     tileset.modelMatrix = composeTilesetMatrix(baseMatrix, anchor, adjust);
   }
 
@@ -119,5 +123,10 @@ export function initTilesetTransformPanel({ tileset, baseMatrix, anchor, contain
         }
       });
     },
+    setTileset: (nextTileset) => {
+      tileset = nextTileset;
+      applyMatrix();
+    },
+    reapplyMatrix: applyMatrix,
   };
 }
