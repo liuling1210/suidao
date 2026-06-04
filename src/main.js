@@ -10,6 +10,8 @@ import {
 import { initGlobeTranslucencyPanel } from "./ui/globeTranslucencyPanel.js";
 import { initTilesetTransformPanel } from "./ui/tilesetTransformPanel.js";
 
+window.CESIUM_BASE_URL = import.meta.env.BASE_URL;
+
 Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
 
 const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN;
