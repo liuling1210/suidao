@@ -54,7 +54,7 @@ export function initTilesetTransformPanel({
   applyRegistration = true,
   container = document.body,
 }) {
-  let tileset = initialTileset;
+  let tilesets = initialTileset ? [initialTileset] : [];
   let useRegistration = applyRegistration;
   const adjust = { ...DEFAULT_COARSE_ADJUST };
 
@@ -82,13 +82,16 @@ export function initTilesetTransformPanel({
   container.appendChild(panel);
 
   function applyMatrix() {
-    if (!tileset) {
+    if (tilesets.length === 0) {
       return;
     }
-    tileset.modelMatrix = composeTilesetMatrix(baseMatrix, anchor, adjust, {
+    const matrix = composeTilesetMatrix(baseMatrix, anchor, adjust, {
       applyRegistration: useRegistration,
       initialPlacementMatrix,
     });
+    for (const tileset of tilesets) {
+      tileset.modelMatrix = matrix;
+    }
   }
 
   function syncValue(key, value) {
@@ -135,7 +138,11 @@ export function initTilesetTransformPanel({
       });
     },
     setTileset: (nextTileset) => {
-      tileset = nextTileset;
+      tilesets = nextTileset ? [nextTileset] : [];
+      applyMatrix();
+    },
+    setTilesets: (nextTilesets) => {
+      tilesets = nextTilesets ?? [];
       applyMatrix();
     },
     setApplyRegistration: (enabled) => {
