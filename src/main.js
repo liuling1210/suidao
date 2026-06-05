@@ -11,8 +11,13 @@ import {
   pickBestModelMatrix,
 } from "./utils/tunnelTransform.js";
 import { composeInitialTilesetMatrix } from "./utils/modelMatrixAdjust.js";
+import { INITIAL_CAMERA } from "./config/initialCamera.js";
 import { initGlobeTranslucencyPanel } from "./ui/globeTranslucencyPanel.js";
 import { initTilesetTransformPanel } from "./ui/tilesetTransformPanel.js";
+import { initDrillHolePanel } from "./ui/drillHolePanel.js";
+import { initSceneClickHandler } from "./ui/sceneClickHandler.js";
+import { initScenePopupManager } from "./ui/scenePopup.js";
+import { applyInitialCamera, initCameraPresetLogger } from "./utils/cameraPreset.js";
 
 window.CESIUM_BASE_URL = `${import.meta.env.BASE_URL}cesium/`;
 
@@ -45,7 +50,18 @@ viewer.imageryLayers.addImageryProvider(createTiandituImageryProvider("cia"));
 
 viewer.scene.globe.depthTestAgainstTerrain = true;
 
-initGlobeTranslucencyPanel(viewer);
+const rightPanelStack = document.createElement("div");
+rightPanelStack.className = "control-panel-stack control-panel-stack--right";
+document.body.appendChild(rightPanelStack);
+
+initGlobeTranslucencyPanel(viewer, rightPanelStack);
+
+const sceneClickHandler = initSceneClickHandler(viewer);
+const scenePopupManager = initScenePopupManager(viewer);
+
+const placementAnchor = initialPlacementAnchor();
+applyInitialCamera(viewer, placementAnchor, INITIAL_CAMERA);
+initCameraPresetLogger(viewer, () => placementAnchor);
 
 const leftLine = TUNNEL_LINES.left;
 const rightLine = TUNNEL_LINES.right;
@@ -63,7 +79,6 @@ const { matrix: baseMatrix, errors } = pickBestModelMatrix(
   worldRightEntrance,
   worldRightExit
 );
-const placementAnchor = initialPlacementAnchor();
 const initialPlacementMatrix = composeInitialTilesetMatrix(
   placementAnchor,
   computeInitialPlacementMatrix(worldLeftEntrance, worldLeftExit)
@@ -82,34 +97,17 @@ console.info("隧道设计路面高程（米）:", {
   右线出口: rightLine.exit.elevation,
 });
 
-let currentTileset = null;
+const TILESET_PATHS = ["out1", "out2", "out3", "out4"];
 
-async function flyToTileset(tileset) {
-  await tileset.readyPromise;
-  await viewer.flyTo(tileset, {
-    duration: 2,
-    offset: new Cesium.HeadingPitchRange(
-      0,
-      Cesium.Math.toRadians(-45),
-      tileset.boundingSphere.radius * 2.5
-    ),
-  });
-}
+const loadedTilesets = [];
+const tilesetByFolder = new Map();
 
-async function loadTileset(tileset, { flyTo = true } = {}) {
-  if (currentTileset) {
-    viewer.scene.primitives.remove(currentTileset);
-  }
-
+async function addTileset(name, tileset) {
   await clearTilesetRootTransform(tileset);
-
   viewer.scene.primitives.add(tileset);
-  currentTileset = tileset;
-  transformPanel.setTileset(tileset);
-
-  if (flyTo) {
-    await flyToTileset(tileset);
-  }
+  loadedTilesets.push(tileset);
+  tilesetByFolder.set(name, tileset);
+  transformPanel.setTilesets(loadedTilesets);
 }
 
 const transformPanel = initTilesetTransformPanel({
@@ -120,8 +118,25 @@ const transformPanel = initTilesetTransformPanel({
   applyRegistration: false,
 });
 
-Cesium.Cesium3DTileset.fromUrl(`${import.meta.env.BASE_URL}model/out/tileset.json`)
-  .then((tileset) => loadTileset(tileset))
+Promise.all(
+  TILESET_PATHS.map((name) =>
+    Cesium.Cesium3DTileset.fromUrl(`${import.meta.env.BASE_URL}model/${name}/tileset.json`)
+  )
+)
+  .then(async (tilesets) => {
+    for (let i = 0; i < tilesets.length; i++) {
+      await addTileset(TILESET_PATHS[i], tilesets[i]);
+    }
+    initDrillHolePanel({
+      viewer,
+      tilesetByFolder,
+      anchor: placementAnchor,
+      popupManager: scenePopupManager,
+      initialCamera: INITIAL_CAMERA,
+      sceneClickHandler,
+      container: rightPanelStack,
+    });
+  })
   .catch((error) => {
     console.error("加载隧道模型失败:", error);
   });
