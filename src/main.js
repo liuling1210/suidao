@@ -1,7 +1,12 @@
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
+import { LAYER_TREE } from "./config/layerTree.js";
 import { TUNNEL_LINES } from "./config/tunnelLocations.js";
+import { initAppShell } from "./ui/appShell.js";
+import { initLayerTree } from "./ui/layerTree.js";
+import { initSurveyTablePanel } from "./ui/surveyTablePanel.js";
+import { DEFAULT_TABLE_ID } from "./data/tableRegistry.js";
 import {
   addTunnelMarkers,
   clearTilesetRootTransform,
@@ -18,8 +23,36 @@ import { initDrillHolePanel } from "./ui/drillHolePanel.js";
 import { initSceneClickHandler } from "./ui/sceneClickHandler.js";
 import { initScenePopupManager } from "./ui/scenePopup.js";
 import { applyInitialCamera, initCameraPresetLogger } from "./utils/cameraPreset.js";
+import {
+  DRILL_TILESET_FOLDERS,
+  getTilesetLoadOptions,
+  MAIN_TILESET_FOLDER,
+} from "./config/tilesetOptions.js";
+import { createTilesetVisibilityController } from "./utils/tilesetVisibility.js";
 
 window.CESIUM_BASE_URL = `${import.meta.env.BASE_URL}cesium/`;
+
+const { layerTreeRoot, chartPanelRoot, cesiumContainer, showRightSidebar } = initAppShell();
+const surveyTablePanel = initSurveyTablePanel(chartPanelRoot);
+
+const layerTree = initLayerTree(layerTreeRoot, LAYER_TREE, {
+  onSelect(node) {
+    surveyTablePanel.showTable(node);
+    showRightSidebar();
+  },
+});
+
+const defaultNode = layerTree.getNodeById(DEFAULT_TABLE_ID);
+if (defaultNode) {
+  layerTree.setActive(DEFAULT_TABLE_ID);
+  surveyTablePanel.showTable(defaultNode);
+  showRightSidebar();
+}
+
+const devTools = document.createElement("div");
+devTools.className = "dev-tools";
+devTools.hidden = true;
+document.body.appendChild(devTools);
 
 Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
 
@@ -33,7 +66,7 @@ function createTiandituImageryProvider(type) {
   });
 }
 
-const viewer = new Cesium.Viewer("cesiumContainer", {
+const viewer = new Cesium.Viewer(cesiumContainer, {
   terrain: Cesium.Terrain.fromWorldTerrain(),
   animation: false,
   timeline: false,
@@ -48,11 +81,12 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
 
 viewer.imageryLayers.addImageryProvider(createTiandituImageryProvider("cia"));
 
-viewer.scene.globe.depthTestAgainstTerrain = true;
+// 保留全球地形，关闭与 3D Tiles 的深度测试以降低每帧 GPU 开销
+viewer.scene.globe.depthTestAgainstTerrain = false;
 
 const rightPanelStack = document.createElement("div");
 rightPanelStack.className = "control-panel-stack control-panel-stack--right";
-document.body.appendChild(rightPanelStack);
+devTools.appendChild(rightPanelStack);
 
 initGlobeTranslucencyPanel(viewer, rightPanelStack);
 
@@ -97,18 +131,8 @@ console.info("隧道设计路面高程（米）:", {
   右线出口: rightLine.exit.elevation,
 });
 
-const TILESET_PATHS = ["out1", "out2", "out3", "out4"];
-
 const loadedTilesets = [];
 const tilesetByFolder = new Map();
-
-async function addTileset(name, tileset) {
-  await clearTilesetRootTransform(tileset);
-  viewer.scene.primitives.add(tileset);
-  loadedTilesets.push(tileset);
-  tilesetByFolder.set(name, tileset);
-  transformPanel.setTilesets(loadedTilesets);
-}
 
 const transformPanel = initTilesetTransformPanel({
   tileset: null,
@@ -116,20 +140,60 @@ const transformPanel = initTilesetTransformPanel({
   anchor: placementAnchor,
   initialPlacementMatrix,
   applyRegistration: false,
+  container: devTools,
 });
 
-Promise.all(
-  TILESET_PATHS.map((name) =>
-    Cesium.Cesium3DTileset.fromUrl(`${import.meta.env.BASE_URL}model/${name}/tileset.json`)
-  )
-)
-  .then(async (tilesets) => {
-    for (let i = 0; i < tilesets.length; i++) {
-      await addTileset(TILESET_PATHS[i], tilesets[i]);
+const tilesetVisibility = createTilesetVisibilityController(viewer, tilesetByFolder, {
+  loadTileset,
+});
+
+function tilesetUrl(folder) {
+  return `${import.meta.env.BASE_URL}model/${folder}/tileset.json`;
+}
+
+async function loadTileset(folder) {
+  const existing = tilesetByFolder.get(folder);
+  if (existing) {
+    return existing;
+  }
+
+  const tileset = await Cesium.Cesium3DTileset.fromUrl(
+    tilesetUrl(folder),
+    getTilesetLoadOptions(folder)
+  );
+  await clearTilesetRootTransform(tileset);
+  tilesetByFolder.set(folder, tileset);
+  loadedTilesets.push(tileset);
+  transformPanel.setTilesets(loadedTilesets);
+  return tileset;
+}
+
+function preloadDrillTilesets() {
+  const load = async () => {
+    try {
+      await Promise.all(DRILL_TILESET_FOLDERS.map((folder) => loadTileset(folder)));
+    } catch (error) {
+      console.error("预加载钻孔模型失败:", error);
     }
+  };
+
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(() => {
+      load();
+    });
+  } else {
+    setTimeout(load, 2000);
+  }
+}
+
+loadTileset(MAIN_TILESET_FOLDER)
+  .then(async (mainTileset) => {
+    viewer.scene.primitives.add(mainTileset);
+    preloadDrillTilesets();
     initDrillHolePanel({
       viewer,
       tilesetByFolder,
+      tilesetVisibility,
       anchor: placementAnchor,
       popupManager: scenePopupManager,
       initialCamera: INITIAL_CAMERA,

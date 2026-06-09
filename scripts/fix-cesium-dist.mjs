@@ -5,6 +5,23 @@ const distDir = "dist";
 const base = process.env.VITE_BASE ?? "/suidao/";
 const baseSegment = base.replace(/^\/|\/$/g, "");
 
+async function moveDirectory(src, dest) {
+  await fs.rm(dest, { recursive: true, force: true });
+
+  try {
+    await fs.rename(src, dest);
+    return;
+  } catch (error) {
+    if (error.code !== "EPERM" && error.code !== "EBUSY" && error.code !== "EXDEV") {
+      throw error;
+    }
+  }
+
+  // Windows 上 rename 常因目录占用失败，改用复制后删除
+  await fs.cp(src, dest, { recursive: true });
+  await fs.rm(src, { recursive: true, force: true });
+}
+
 async function moveCesiumAssets() {
   if (!baseSegment) {
     return;
@@ -19,8 +36,7 @@ async function moveCesiumAssets() {
     return;
   }
 
-  await fs.rm(targetCesiumDir, { recursive: true, force: true });
-  await fs.rename(nestedCesiumDir, targetCesiumDir);
+  await moveDirectory(nestedCesiumDir, targetCesiumDir);
   await fs.rm(path.join(distDir, baseSegment), { recursive: true, force: true });
   console.log(`Cesium assets moved to ${targetCesiumDir}`);
 }

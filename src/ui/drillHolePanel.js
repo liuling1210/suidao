@@ -25,6 +25,7 @@ async function flyToTileset(viewer, tileset) {
 export function initDrillHolePanel({
   viewer,
   tilesetByFolder,
+  tilesetVisibility,
   anchor,
   popupManager,
   initialCamera,
@@ -60,6 +61,7 @@ export function initDrillHolePanel({
 
     if (folder === "initial") {
       hideAllPopups();
+      tilesetVisibility?.hideDrillTilesets();
       try {
         await flyToCameraPreset(viewer, anchor, initialCamera);
       } catch (error) {
@@ -68,12 +70,23 @@ export function initDrillHolePanel({
       return;
     }
 
+    try {
+      await tilesetVisibility?.showDrillTileset(folder);
+    } catch (error) {
+      console.error("显示钻孔模型失败:", error);
+      return;
+    }
+
     const drillConfig = DRILL_HOLE_CAMERAS[folder];
     if (drillConfig?.camera) {
       try {
         await flyToCameraPreset(viewer, anchor, drillConfig.camera);
         const popupWorld = resolvePopupWorldPosition(drillConfig, anchor);
-        popupManager?.show({ worldPosition: popupWorld, title: drillConfig.label });
+        await popupManager?.show({
+          worldPosition: popupWorld,
+          title: drillConfig.label,
+          size: drillConfig.popupSize,
+        });
       } catch (error) {
         console.error("飞行定位失败:", error);
       }
