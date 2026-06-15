@@ -5,7 +5,12 @@ import { LAYER_TREE } from "./config/layerTree.js";
 import { TUNNEL_LINES } from "./config/tunnelLocations.js";
 import { initAppShell } from "./ui/appShell.js";
 import { initLayerTree } from "./ui/layerTree.js";
-import { initSurveyTablePanel } from "./ui/surveyTablePanel.js";
+import { initRightPanel } from "./ui/rightPanel.js";
+import { initBottomToolbar } from "./ui/bottomToolbar.js";
+import { initMeasurePanel } from "./ui/functionPanels/measurePanel.js";
+import { initCameraRoamPanel } from "./ui/functionPanels/cameraRoamPanel.js";
+import { initModelAdjustPanel } from "./ui/functionPanels/modelAdjustPanel.js";
+import { createLocationMarkTool } from "./tools/locationMarkTool.js";
 import { DEFAULT_TABLE_ID } from "./data/tableRegistry.js";
 import {
   addTunnelMarkers,
@@ -20,34 +25,51 @@ import { INITIAL_CAMERA } from "./config/initialCamera.js";
 import { initGlobeTranslucencyPanel } from "./ui/globeTranslucencyPanel.js";
 import { initTilesetTransformPanel } from "./ui/tilesetTransformPanel.js";
 import { initDrillHolePanel } from "./ui/drillHolePanel.js";
-import { initSceneClickHandler } from "./ui/sceneClickHandler.js";
+import { initLithologyLegendPanel } from "./ui/lithologyLegendPanel.js";
 import { initScenePopupManager } from "./ui/scenePopup.js";
-import { applyInitialCamera, initCameraPresetLogger } from "./utils/cameraPreset.js";
+import { applyInitialCamera } from "./utils/cameraPreset.js";
 import {
   DRILL_TILESET_FOLDERS,
   getTilesetLoadOptions,
   MAIN_TILESET_FOLDER,
 } from "./config/tilesetOptions.js";
-import { createTilesetVisibilityController } from "./utils/tilesetVisibility.js";
+import { createSceneLayerController } from "./utils/sceneLayerController.js";
 
 window.CESIUM_BASE_URL = `${import.meta.env.BASE_URL}cesium/`;
 
-const { layerTreeRoot, chartPanelRoot, cesiumContainer, showRightSidebar } = initAppShell();
-const surveyTablePanel = initSurveyTablePanel(chartPanelRoot);
+const {
+  layerTreeRoot,
+  chartPanelRoot,
+  bottomToolbarRoot,
+  cesiumContainer,
+  showRightSidebar,
+  hideLeftSidebar,
+} = initAppShell();
+
+const drillHoleRef = { current: null };
+
+const rightPanel = initRightPanel(chartPanelRoot);
 
 const layerTree = initLayerTree(layerTreeRoot, LAYER_TREE, {
   onSelect(node) {
-    surveyTablePanel.showTable(node);
-    showRightSidebar();
+    if (rightPanel.getMode() === "table") {
+      rightPanel.showTable(node);
+      showRightSidebar();
+    }
   },
 });
 
-const defaultNode = layerTree.getNodeById(DEFAULT_TABLE_ID);
-if (defaultNode) {
+function showHome({ resetScene = false } = {}) {
+  if (resetScene) {
+    drillHoleRef.current?.flyToInitial();
+  }
+  const defaultNode = layerTree.getNodeById(DEFAULT_TABLE_ID);
   layerTree.setActive(DEFAULT_TABLE_ID);
-  surveyTablePanel.showTable(defaultNode);
+  rightPanel.showTable(defaultNode);
   showRightSidebar();
 }
+
+showHome();
 
 const devTools = document.createElement("div");
 devTools.className = "dev-tools";
@@ -76,6 +98,7 @@ const viewer = new Cesium.Viewer(cesiumContainer, {
   sceneModePicker: true,
   navigationHelpButton: true,
   fullscreenButton: true,
+  selectionIndicator: false,
   baseLayer: new Cesium.ImageryLayer(createTiandituImageryProvider("img")),
 });
 
@@ -83,19 +106,39 @@ viewer.imageryLayers.addImageryProvider(createTiandituImageryProvider("cia"));
 
 // 保留全球地形，关闭与 3D Tiles 的深度测试以降低每帧 GPU 开销
 viewer.scene.globe.depthTestAgainstTerrain = false;
+viewer.scene.pickTranslucentDepth = true;
+
+createLocationMarkTool(viewer);
+
+rightPanel.registerFunctionPanel("measure", "数据测量", (body) =>
+  initMeasurePanel(body, viewer)
+);
+rightPanel.registerFunctionPanel("roam", "摄像机漫游", (body) =>
+  initCameraRoamPanel(body, viewer)
+);
+
+initBottomToolbar(bottomToolbarRoot, {
+  onSelect(id) {
+    if (id === "home") {
+      showHome({ resetScene: true });
+      return;
+    }
+    rightPanel.showFunction(id);
+    showRightSidebar();
+  },
+});
 
 const rightPanelStack = document.createElement("div");
 rightPanelStack.className = "control-panel-stack control-panel-stack--right";
 devTools.appendChild(rightPanelStack);
 
-initGlobeTranslucencyPanel(viewer, rightPanelStack);
+const globeTranslucencyPanel = initGlobeTranslucencyPanel(viewer, rightPanelStack);
 
-const sceneClickHandler = initSceneClickHandler(viewer);
 const scenePopupManager = initScenePopupManager(viewer);
+const lithologyLegendPanel = initLithologyLegendPanel(document.getElementById("app"));
 
 const placementAnchor = initialPlacementAnchor();
 applyInitialCamera(viewer, placementAnchor, INITIAL_CAMERA);
-initCameraPresetLogger(viewer, () => placementAnchor);
 
 const leftLine = TUNNEL_LINES.left;
 const rightLine = TUNNEL_LINES.right;
@@ -133,6 +176,7 @@ console.info("隧道设计路面高程（米）:", {
 
 const loadedTilesets = [];
 const tilesetByFolder = new Map();
+const tilesetLoadingByFolder = new Map();
 
 const transformPanel = initTilesetTransformPanel({
   tileset: null,
@@ -143,12 +187,21 @@ const transformPanel = initTilesetTransformPanel({
   container: devTools,
 });
 
-const tilesetVisibility = createTilesetVisibilityController(viewer, tilesetByFolder, {
-  loadTileset,
-});
-
 function tilesetUrl(folder) {
   return `${import.meta.env.BASE_URL}model/${folder}/tileset.json`;
+}
+
+async function isTilesetAvailable(url) {
+  try {
+    const response = await fetch(url, { method: "HEAD" });
+    if (!response.ok) {
+      return false;
+    }
+    const contentType = response.headers.get("content-type") || "";
+    return contentType.includes("json");
+  } catch {
+    return false;
+  }
 }
 
 async function loadTileset(folder) {
@@ -157,24 +210,56 @@ async function loadTileset(folder) {
     return existing;
   }
 
-  const tileset = await Cesium.Cesium3DTileset.fromUrl(
-    tilesetUrl(folder),
-    getTilesetLoadOptions(folder)
-  );
-  await clearTilesetRootTransform(tileset);
-  tilesetByFolder.set(folder, tileset);
-  loadedTilesets.push(tileset);
-  transformPanel.setTilesets(loadedTilesets);
-  return tileset;
+  const pending = tilesetLoadingByFolder.get(folder);
+  if (pending) {
+    return pending;
+  }
+
+  const loadPromise = (async () => {
+    const url = tilesetUrl(folder);
+    if (!(await isTilesetAvailable(url))) {
+      const message = `模型未找到: public/model/${folder}/tileset.json`;
+      if (folder === MAIN_TILESET_FOLDER) {
+        throw new Error(message);
+      }
+      console.warn(message);
+      return null;
+    }
+
+    const tileset = await Cesium.Cesium3DTileset.fromUrl(
+      url,
+      getTilesetLoadOptions(folder)
+    );
+    await clearTilesetRootTransform(tileset);
+    tilesetByFolder.set(folder, tileset);
+    loadedTilesets.push(tileset);
+    transformPanel.setTilesets(loadedTilesets);
+    return tileset;
+  })();
+
+  tilesetLoadingByFolder.set(folder, loadPromise);
+
+  try {
+    return await loadPromise;
+  } finally {
+    tilesetLoadingByFolder.delete(folder);
+  }
 }
+
+const sceneLayers = createSceneLayerController(viewer, tilesetByFolder, {
+  loadTileset,
+  onGlobeAlphaChange: (alpha) => globeTranslucencyPanel.setAlpha(alpha),
+});
+
+rightPanel.registerFunctionPanel("model", "模型调节", (body) =>
+  initModelAdjustPanel(body, sceneLayers, drillHoleRef)
+);
+
+const tilesetVisibility = sceneLayers;
 
 function preloadDrillTilesets() {
   const load = async () => {
-    try {
-      await Promise.all(DRILL_TILESET_FOLDERS.map((folder) => loadTileset(folder)));
-    } catch (error) {
-      console.error("预加载钻孔模型失败:", error);
-    }
+    await Promise.all(DRILL_TILESET_FOLDERS.map((folder) => loadTileset(folder)));
   };
 
   if (typeof requestIdleCallback === "function") {
@@ -188,17 +273,25 @@ function preloadDrillTilesets() {
 
 loadTileset(MAIN_TILESET_FOLDER)
   .then(async (mainTileset) => {
+    if (!mainTileset) {
+      throw new Error(`主隧道模型未找到: public/model/${MAIN_TILESET_FOLDER}/tileset.json`);
+    }
     viewer.scene.primitives.add(mainTileset);
     preloadDrillTilesets();
-    initDrillHolePanel({
+    drillHoleRef.current = initDrillHolePanel({
       viewer,
       tilesetByFolder,
       tilesetVisibility,
       anchor: placementAnchor,
       popupManager: scenePopupManager,
+      legendPanel: lithologyLegendPanel,
       initialCamera: INITIAL_CAMERA,
-      sceneClickHandler,
       container: rightPanelStack,
+    });
+    drillHoleRef.current.setOnDrillPick((folder) => {
+      hideLeftSidebar();
+      rightPanel.showDrillInfo(folder);
+      showRightSidebar();
     });
   })
   .catch((error) => {

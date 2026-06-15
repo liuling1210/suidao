@@ -66,6 +66,25 @@ export function pickWorldPosition(viewer, windowPosition) {
   return null;
 }
 
+/**
+ * 鼠标移动预览用轻量拾取：仅 pickPosition + 地表射线，不做 scene.pick。
+ */
+export function pickPreviewPosition(viewer, windowPosition) {
+  const scene = viewer.scene;
+  const depthPosition = scene.pickPosition(windowPosition);
+  if (Cesium.defined(depthPosition) && isInFrontOfCamera(viewer, depthPosition)) {
+    return depthPosition;
+  }
+  const ray = viewer.camera.getPickRay(windowPosition);
+  if (ray) {
+    const globePosition = scene.globe.pick(ray, scene);
+    if (Cesium.defined(globePosition)) {
+      return globePosition;
+    }
+  }
+  return null;
+}
+
 export function formatLonLatHeight({ lon, lat, height }, decimals = 6) {
   return {
     lon: lon.toFixed(decimals),

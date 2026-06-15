@@ -97,24 +97,3 @@ export function flyToCameraPreset(viewer, anchor, preset, { duration = 1.5 } = {
     duration,
   });
 }
-
-export function initCameraPresetLogger(viewer, getAnchor) {
-  const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-
-  handler.setInputAction(() => {
-    const anchor = getAnchor();
-    if (!anchor) {
-      console.warn("锚点未就绪，无法输出 INITIAL_CAMERA");
-      return;
-    }
-
-    const preset = captureCameraPreset(viewer, anchor);
-    console.log(formatCameraPreset(preset));
-  }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
-
-  viewer.scene.canvas.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-  });
-
-  return handler;
-}

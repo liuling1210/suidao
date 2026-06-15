@@ -1,18 +1,10 @@
-const DEFAULT_ALPHA = 1;
-
-function applyGlobeAlpha(viewer, alpha) {
-  if (alpha >= 1) {
-    viewer.scene.globe.translucency.enabled = false;
-    viewer.scene.globe.translucency.frontFaceAlpha = 1;
-    return;
-  }
-
-  viewer.scene.globe.translucency.enabled = true;
-  viewer.scene.globe.translucency.frontFaceAlpha = alpha;
-}
+import {
+  applyGlobeAlpha,
+  DEFAULT_GLOBE_ALPHA,
+} from "../utils/globeTranslucency.js";
 
 export function initGlobeTranslucencyPanel(viewer, container = document.body) {
-  applyGlobeAlpha(viewer, DEFAULT_ALPHA);
+  applyGlobeAlpha(viewer, DEFAULT_GLOBE_ALPHA);
 
   const panel = document.createElement("div");
   panel.className = "control-panel translucency-panel";
@@ -26,9 +18,9 @@ export function initGlobeTranslucencyPanel(viewer, container = document.body) {
         min="0"
         max="1"
         step="0.01"
-        value="${DEFAULT_ALPHA}"
+        value="${DEFAULT_GLOBE_ALPHA}"
       />
-      <span id="globeAlphaValue" class="translucency-panel__value">${DEFAULT_ALPHA.toFixed(2)}</span>
+      <span id="globeAlphaValue" class="translucency-panel__value">${DEFAULT_GLOBE_ALPHA.toFixed(2)}</span>
     </div>
   `;
 
@@ -37,11 +29,16 @@ export function initGlobeTranslucencyPanel(viewer, container = document.body) {
   const slider = panel.querySelector("#globeAlphaSlider");
   const valueLabel = panel.querySelector("#globeAlphaValue");
 
+  function setAlpha(alpha) {
+    slider.value = String(alpha);
+    valueLabel.textContent = alpha.toFixed(2);
+  }
+
   slider.addEventListener("input", () => {
     const alpha = Number(slider.value);
     applyGlobeAlpha(viewer, alpha);
     valueLabel.textContent = alpha.toFixed(2);
   });
 
-  return panel;
+  return { setAlpha };
 }
