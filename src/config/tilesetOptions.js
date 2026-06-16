@@ -1,5 +1,8 @@
 export const MAIN_TILESET_FOLDER = "out1";
 
+/** 与 out1 同级的隧道模型，启动时一并加载 */
+export const TUNNEL_TILESET_FOLDERS = ["out1", "out"];
+
 export const DRILL_TILESET_FOLDERS = ["out2", "out3", "out4"];
 
 const SHARED_LOD_OPTIONS = {
@@ -26,5 +29,5 @@ const DRILL_TILESET_LOD = {
 };
 
 export function getTilesetLoadOptions(folder) {
-  return folder === MAIN_TILESET_FOLDER ? MAIN_TILESET_LOD : DRILL_TILESET_LOD;
+  return TUNNEL_TILESET_FOLDERS.includes(folder) ? MAIN_TILESET_LOD : DRILL_TILESET_LOD;
 }

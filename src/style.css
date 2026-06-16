@@ -1606,6 +1606,10 @@ body {
   padding-left: 8px;
 }
 
+.function-panel__camera-locate {
+  margin-bottom: 12px;
+}
+
 .function-panel__drill-locate-list {
   display: flex;
   flex-direction: column;
@@ -1749,6 +1753,45 @@ body {
   margin: 0;
   color: #fff;
   font-family: "Consolas", "Courier New", monospace;
+}
+
+.location-mark-camera-popup {
+  width: 340px;
+}
+
+.location-mark-camera-popup__code {
+  margin: 0;
+  padding: 12px;
+  color: #fff;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.location-mark-camera-popup__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 12px 12px;
+}
+
+.location-mark-camera-popup__copy {
+  padding: 6px 14px;
+  border: 1px solid rgba(0, 162, 255, 0.45);
+  border-radius: 4px;
+  background: rgba(6, 24, 48, 0.75);
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.location-mark-camera-popup__copy:hover {
+  border-color: var(--color-border-bright);
+  background: rgba(12, 40, 72, 0.95);
+  color: #fff;
 }
 
 /* ── Dev tools (hidden) ── */

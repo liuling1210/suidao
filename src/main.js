@@ -32,6 +32,7 @@ import {
   DRILL_TILESET_FOLDERS,
   getTilesetLoadOptions,
   MAIN_TILESET_FOLDER,
+  TUNNEL_TILESET_FOLDERS,
 } from "./config/tilesetOptions.js";
 import { createSceneLayerController } from "./utils/sceneLayerController.js";
 
@@ -61,7 +62,7 @@ const layerTree = initLayerTree(layerTreeRoot, LAYER_TREE, {
 
 function showHome({ resetScene = false } = {}) {
   if (resetScene) {
-    drillHoleRef.current?.flyToInitial();
+    drillHoleRef.current?.flyToInitial({ moveCamera: false });
   }
   const defaultNode = layerTree.getNodeById(DEFAULT_TABLE_ID);
   layerTree.setActive(DEFAULT_TABLE_ID);
@@ -108,8 +109,6 @@ viewer.imageryLayers.addImageryProvider(createTiandituImageryProvider("cia"));
 viewer.scene.globe.depthTestAgainstTerrain = false;
 viewer.scene.pickTranslucentDepth = true;
 
-createLocationMarkTool(viewer);
-
 rightPanel.registerFunctionPanel("measure", "数据测量", (body) =>
   initMeasurePanel(body, viewer)
 );
@@ -138,6 +137,7 @@ const scenePopupManager = initScenePopupManager(viewer);
 const lithologyLegendPanel = initLithologyLegendPanel(document.getElementById("app"));
 
 const placementAnchor = initialPlacementAnchor();
+createLocationMarkTool(viewer, placementAnchor);
 applyInitialCamera(viewer, placementAnchor, INITIAL_CAMERA);
 
 const leftLine = TUNNEL_LINES.left;
@@ -219,7 +219,7 @@ async function loadTileset(folder) {
     const url = tilesetUrl(folder);
     if (!(await isTilesetAvailable(url))) {
       const message = `模型未找到: public/model/${folder}/tileset.json`;
-      if (folder === MAIN_TILESET_FOLDER) {
+      if (TUNNEL_TILESET_FOLDERS.includes(folder)) {
         throw new Error(message);
       }
       console.warn(message);
@@ -260,6 +260,7 @@ const tilesetVisibility = sceneLayers;
 function preloadDrillTilesets() {
   const load = async () => {
     await Promise.all(DRILL_TILESET_FOLDERS.map((folder) => loadTileset(folder)));
+    await sceneLayers.showDrillTilesets();
   };
 
   if (typeof requestIdleCallback === "function") {
@@ -271,12 +272,17 @@ function preloadDrillTilesets() {
   }
 }
 
-loadTileset(MAIN_TILESET_FOLDER)
-  .then(async (mainTileset) => {
+Promise.all(TUNNEL_TILESET_FOLDERS.map((folder) => loadTileset(folder)))
+  .then(async (tunnelTilesets) => {
+    const mainTileset = tunnelTilesets[0];
     if (!mainTileset) {
       throw new Error(`主隧道模型未找到: public/model/${MAIN_TILESET_FOLDER}/tileset.json`);
     }
-    viewer.scene.primitives.add(mainTileset);
+    for (const tileset of tunnelTilesets) {
+      if (tileset) {
+        viewer.scene.primitives.add(tileset);
+      }
+    }
     preloadDrillTilesets();
     drillHoleRef.current = initDrillHolePanel({
       viewer,

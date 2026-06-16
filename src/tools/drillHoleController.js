@@ -116,11 +116,16 @@ export function createDrillHoleController({
     });
   }
 
-  async function flyToInitial() {
+  async function flyToInitial({ moveCamera = true } = {}) {
     activeFolder = "initial";
     hideDrillPresentation();
-    tilesetVisibility?.hideDrillTilesets();
+    if (tilesetVisibility?.isDrillLayerVisible()) {
+      await tilesetVisibility.showDrillTilesets();
+    }
     notifyActiveChange();
+    if (!moveCamera) {
+      return;
+    }
     try {
       await flyToCameraPreset(viewer, anchor, initialCamera);
     } catch (error) {

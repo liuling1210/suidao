@@ -7,7 +7,7 @@ const LOCATE_ICON = `
 
 const LAYER_OPTIONS = [
   { id: "imagery", label: "地形影像图" },
-  { id: "tunnel", label: "隧道模型", locate: "initial", locateTitle: "回到初始视角" },
+  { id: "tunnel", label: "隧道模型" },
   { id: "drill", label: "钻孔模型" },
 ];
 
@@ -39,8 +39,20 @@ function renderLayerRow(item) {
 export function initModelAdjustPanel(container, sceneLayers, drillHoleRef) {
   container.innerHTML = `
     <div class="function-panel__section">
-      <p class="function-panel__hint">勾选显示对应图层，取消勾选则隐藏。点击定位图标可飞到预设视角。</p>
+      <p class="function-panel__hint">勾选显示对应图层，取消勾选则隐藏。点击定位按钮可飞到预设视角。</p>
       <ul class="function-panel__layer-toggles">
+        <li class="function-panel__camera-locate">
+          <button
+            type="button"
+            class="function-panel__locate-btn function-panel__locate-btn--labeled"
+            data-locate="initial"
+            title="回到初始视角"
+            aria-label="回到初始视角"
+          >
+            ${LOCATE_ICON}
+            <span>初始视角</span>
+          </button>
+        </li>
         ${LAYER_OPTIONS.map(renderLayerRow).join("")}
         <li class="function-panel__drill-locates" data-drill-locates hidden>
           <div class="function-panel__drill-locate-list">

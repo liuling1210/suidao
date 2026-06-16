@@ -1,4 +1,4 @@
-import { DRILL_TILESET_FOLDERS, MAIN_TILESET_FOLDER } from "../config/tilesetOptions.js";
+import { DRILL_TILESET_FOLDERS, TUNNEL_TILESET_FOLDERS } from "../config/tilesetOptions.js";
 import {
   DEFAULT_GLOBE_ALPHA,
   hideTerrainImagery,
@@ -27,9 +27,11 @@ export function createSceneLayerController(viewer, tilesetByFolder, { loadTilese
 
   function setTunnelVisible(visible) {
     tunnelVisible = visible;
-    const tileset = tilesetByFolder.get(MAIN_TILESET_FOLDER);
-    if (tileset) {
-      tileset.show = visible;
+    for (const folder of TUNNEL_TILESET_FOLDERS) {
+      const tileset = tilesetByFolder.get(folder);
+      if (tileset) {
+        tileset.show = visible;
+      }
     }
   }
 
